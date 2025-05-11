@@ -14,8 +14,8 @@ Route::get('dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::get('/portique',PortiqueController::class);
-Route::get('/logs',[LogController::class,'index']);
+Route::get('/dashboard/collaborateur',PortiqueController::class);
+Route::get('/dashboard/logs',[LogController::class,'index']);
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

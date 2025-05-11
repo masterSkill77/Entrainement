@@ -9,8 +9,8 @@ import Menubar from 'primevue/menubar';
 import InputText from 'primevue/inputtext';
 import Avatar from 'primevue/avatar';
 import Badge from 'primevue/badge';
+import Heading from '@/components/Heading.vue'; 
 
-// ✅ Props
 const props = defineProps({
   log_portiques: {
     type: Object,
@@ -18,7 +18,6 @@ const props = defineProps({
   }
 });
 
-// ✅ Pagination variables
 const total = props.log_portiques.total;
 const currentPage = props.log_portiques.current_page;
 const perPage = props.log_portiques.per_page;
@@ -31,74 +30,29 @@ const onPageChange = (event) => {
   router.get(url.toString(), {}, { preserveState: true, preserveScroll: true });
 };
 
-// ✅ Menu items
 const items = ref([
+  { label: 'Collaborateurs', icon: 'pi pi-home' },
   {
-    label: 'Home',
-    icon: 'pi pi-home'
-  },
-  {
-    label: 'Projects',
+    label: 'Logs',
     icon: 'pi pi-search',
     badge: 3,
     items: [
-      {
-        label: 'Core',
-        icon: 'pi pi-bolt',
-        shortcut: '⌘+S'
-      },
-      {
-        label: 'Blocks',
-        icon: 'pi pi-server',
-        shortcut: '⌘+B'
-      },
-      {
-        separator: true
-      },
-      {
-        label: 'UI Kit',
-        icon: 'pi pi-pencil',
-        shortcut: '⌘+U'
-      }
+      { label: 'Core', icon: 'pi pi-bolt', shortcut: '⌘+S' },
+      { label: 'Blocks', icon: 'pi pi-server', shortcut: '⌘+B' },
+      { separator: true },
+      { label: 'UI Kit', icon: 'pi pi-pencil', shortcut: '⌘+U' }
     ]
   }
 ]);
 </script>
 
 <template>
-  <Menubar :model="items">
-
-    <template #start>
-    <div class="flex items-center gap-2">
-         <Avatar image="https://primefaces.org/cdn/primevue/images/avatar/amyelsner.png" shape="circle" />
-        <strong class="font-bold">Vivetic</strong>
-    </div>
-    </template>
-
-    <template #item="{ item, props, hasSubmenu, root }">
-        <a v-ripple class="flex items-center" v-bind="props">
-            <span>{{ item.label }}</span>
-            <Badge v-if="item.badge" :class="{ 'ml-auto': !root, 'ml-2': root }" :value="item.badge" />
-            <span v-if="item.shortcut" class="ml-auto border border-surface rounded bg-emphasis text-muted-color text-xs p-1">
-            {{ item.shortcut }}
-            </span>
-            <i v-if="hasSubmenu" :class="['pi ml-auto', root ? 'pi-angle-down' : 'pi-angle-right']"></i>
-        </a>
-    </template>
-
-    <template  #end>
-      <svg width="35" height="40" viewBox="0 0 35 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-8">
-        <!-- SVG paths here (non modifiés pour la lisibilité) -->
-      </svg>
-    </template>
-
-  </Menubar>
-
-  <Head title="Collaborateur" />
-
-  <h1 class="text-xl font-bold my-4">Liste des Collaborateurs</h1>
-
-  <div class="card" >
+   <Head title="Collaborateur" />
+   <Heading 
+    title="Liste des Collaborateurs"
+    :menuItems="items"
+  />
+  <div class="card-custom">
     <DataTable :value="props.log_portiques.data" tableStyle="min-width: 50rem">
       <Column field="Name" header="Name" />
       <Column field="pin" header="Matricule" />
@@ -116,4 +70,53 @@ const items = ref([
   </div>
 </template>
 
+<style scoped>
+.card-custom {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 20px 40px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
 
+.menubar-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 40px;
+  background-color: #f5f5f5;
+  margin-bottom: 10px;
+}
+
+.menubar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menubar-center {
+  flex: 1;
+  text-align: center;
+}
+
+.menubar-right {
+  margin-left: auto;
+}
+
+.brand {
+  font-weight: bold;
+  font-size: 1.25rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+::v-deep(.p-avatar img) {
+  width: 48px !important; /* ⬅️ agrandit l'image */
+  height: 48px !important;
+}
+</style>

@@ -12,26 +12,20 @@ use Illuminate\Support\Facades\Log;
 
 class LogController extends Controller
 {
-    const PER_PAGE = 50;
+    const PER_PAGE = 15;
 
-    public function index()
+    public function index(Request $request)
     {
-        $date = '2021-03-01';
-        $logs = $this->collaboratorLogs();
+        $date = $request->query('date'); 
 
-        return $logs;
-        $data = $logs->getCollection();
-        $pauses = $this->calculerToutesPauses($data->all());
+        $data = $this->collaboratorLogs($date); 
 
-        $data = $data->map(function ($personne, $index) use ($pauses) {
-            $personne->pause_minutes = $pauses[$index]['Pause_minutes'];
-            return $personne;
-        });
-
-        dd($data);
+        return Inertia::render('portique/logs',[
+            'log_portiques'=>$data 
+        ]);
     }
 
-    public function collaboratorLogs($date = null)
+    public function collaboratorLogs( ?string $date = null)
     {
         $query =  LogPortique::select([
             'Name',
@@ -43,12 +37,17 @@ class LogController extends Controller
             DB::raw("MAX(CASE WHEN event_point_name LIKE '%SORTIE' THEN DATE_FORMAT(`time`, '%H:%i:%s') END) as derniere_sortie"),
             DB::raw("GROUP_CONCAT(event_point_name ORDER BY `time` SEPARATOR ', ') as events")
         ])
+            ->when($date,function($query) use ($date) {
+                $query->whereDate('time', $date);
+            })
             ->groupBy('Name', 'day', 'pin')
             ->orderBy('day', 'DESC')
             ->paginate(self::PER_PAGE);
 
         $results = (clone $query)->getCollection()->toArray();
 
+        
+        //on parcourt afin de calculer repos et d'avoir premier entree ainsi la derniere sortie
         $newResults = [];
         foreach ($results as $row) {
             $is_night_shift = Carbon::parse($row['premiere_entree'])->format('H:i:s') >= '19:00:00' ||  Carbon::parse($row['derniere_sortie'])->format('H:i:s') <= '04:00:00';
@@ -68,7 +67,7 @@ class LogController extends Controller
                 $seconds = 0;
                 $totalPause = 0;
                 foreach ($events as $event) {
-                    $action = explode('-', $event)[1];
+                    $action = explode('-', $event)[1] ?? null;
                     if ($lastEvent == 'SORTIE' && $action == 'ENTREE') {
                         $exitHour = new DateTime($hours[$i - 1]);
                         $entryHour = new DateTime($hours[$i]);
@@ -92,9 +91,11 @@ class LogController extends Controller
                     $i++;
                 }
 
+               //En supposant que la valeur max de repos est 1heure
+               //le pause inferieur a 1minutes ne sera pas considerer
                 if (count($allEvents) > 1)
                     $newResults[] = [
-                        'nb_seconds_pauses' => $seconds,
+                        'nb_seconds_pauses' => ($seconds < 60 || $seconds > 3600) ? 0 : $seconds,
                         'nb_pause' => $totalPause,
                         'is_unique_card' => $is_unique_card,
                         'is_night_shift' => $is_night_shift,
