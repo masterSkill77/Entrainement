@@ -51,6 +51,8 @@ class LogController extends Controller
             $is_night_shift = Carbon::parse($row['premiere_entree'])->format('H:i:s') >= '19:00:00' ||  Carbon::parse($row['derniere_sortie'])->format('H:i:s') <= '04:00:00';
 
             $events = (explode(',', $row['events']));
+            $is_unique_card = count(array_unique(explode(',', $row['card']))) == 1;
+
             $allEvents = [];
             if (count($events)) {
                 $COUNT_ACTION = [
@@ -74,6 +76,7 @@ class LogController extends Controller
 
                 if (count($allEvents) > 1)
                     $newResults[] = [
+                        'is_unique_card' => $is_unique_card,
                         'is_night_shift' => $is_night_shift,
                         'action' => $COUNT_ACTION,
                         'is_event_unique' => count(array_unique($allEvents)) == 1,
