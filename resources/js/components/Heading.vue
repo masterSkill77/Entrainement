@@ -16,7 +16,7 @@ const props = defineProps({
 <template>
     <div class="menubar-wrapper">
         <div class="menubar-left">
-            <Avatar image="https://primefaces.org/cdn/primevue/images/avatar/amyelsner.png" shape="circle" size="xlarge" />
+            <Avatar label="VT" shape="circle" size="xlarge" />
             <strong class="brand dark:text-black">Vivetic</strong>
         </div>
         <div class="menubar-center">
