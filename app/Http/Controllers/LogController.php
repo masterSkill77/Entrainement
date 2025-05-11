@@ -3,18 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\LogPortique;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use DateTime;
+use Illuminate\Support\Facades\Log;
 
 class LogController extends Controller
 {
+    const PER_PAGE = 50;
+
     public function index()
     {
         $date = '2021-03-01';
-        $logs = $this->AllCollaborateurLogs();
-        $data = $logs->getCollection(); 
+        $logs = $this->collaboratorLogs();
+
+        return $logs;
+        $data = $logs->getCollection();
         $pauses = $this->calculerToutesPauses($data->all());
 
         $data = $data->map(function ($personne, $index) use ($pauses) {
@@ -23,35 +29,84 @@ class LogController extends Controller
         });
 
         dd($data);
-        
     }
 
-    public function AllCollaborateurLogs($date = null)
+    public function collaboratorLogs($date = null)
     {
-        $haveTwoCards = collect(DB::select("
-        SELECT Name
-        FROM log_portiques
-        GROUP BY Name
-        HAVING COUNT(DISTINCT card_no) > 2
-        "))->pluck("Name");
+        $query =  LogPortique::select([
+            'Name',
+            'pin',
+            DB::raw("DATE_FORMAT(`time`, '%Y-%m-%d') as day"),
+            DB::raw("GROUP_CONCAT(DISTINCT card_no  SEPARATOR ',') as card"),
+            DB::raw("GROUP_CONCAT(DATE_FORMAT(`time`, '%H:%i:%s') ORDER BY `time` SEPARATOR ', ') as heures"),
+            DB::raw("MIN(CASE WHEN event_point_name LIKE '%ENTREE' THEN DATE_FORMAT(`time`, '%H:%i:%s') END) as premiere_entree"),
+            DB::raw("MAX(CASE WHEN event_point_name LIKE '%SORTIE' THEN DATE_FORMAT(`time`, '%H:%i:%s') END) as derniere_sortie"),
+            DB::raw("GROUP_CONCAT(event_point_name ORDER BY `time` SEPARATOR ', ') as events")
+        ])
+            ->groupBy('Name', 'day', 'pin')
+            ->orderBy('day', 'DESC')
+            ->paginate(self::PER_PAGE);
 
-        return DB::table('log_portiques')
-            ->select(
-                'Name',
-                DB::raw("GROUP_CONCAT(card_no  SEPARATOR ',') as card"),
-                DB::raw("DATE_FORMAT(`time`, '%Y-%m-%d') as day"),
-                DB::raw("MIN(CASE WHEN event_point_name LIKE '%ENTREE' THEN DATE_FORMAT(`time`, '%H:%i:%s') END) as premiere_entree"),
-                DB::raw("MAX(CASE WHEN event_point_name LIKE '%SORTIE' THEN DATE_FORMAT(`time`, '%H:%i:%s') END) as derniere_sortie"),
-                DB::raw("GROUP_CONCAT(DATE_FORMAT(`time`, '%H:%i:%s') ORDER BY `time` SEPARATOR ', ') as heures"),
-                DB::raw("GROUP_CONCAT(event_point_name ORDER BY `time` SEPARATOR ', ') as events")
-            )
-            ->when($date, function ($query, $date) {
-                return $query->whereDate('time', $date);
-            })
-            ->whereNotIn('Name', $haveTwoCards)
-            ->groupBy('Name', DB::raw("DATE_FORMAT(`time`, '%Y-%m-%d')"))
-            ->orderBy('day', 'ASC')
-            ->paginate(20);
+        $results = (clone $query)->getCollection()->toArray();
+
+        $newResults = [];
+        foreach ($results as $row) {
+            $is_night_shift = Carbon::parse($row['premiere_entree'])->format('H:i:s') >= '19:00:00' ||  Carbon::parse($row['derniere_sortie'])->format('H:i:s') <= '04:00:00';
+            $hours = explode(',', $row['heures']);
+            $events = (explode(',', $row['events']));
+            $is_unique_card = count(array_unique(explode(',', $row['card']))) == 1;
+
+            $allEvents = [];
+            if (count($events)) {
+                $COUNT_ACTION = [
+                    'ENTRY' => 0,
+                    'EXIT' => 0
+                ];
+
+                $lastEvent = null;
+                $i = 0;
+                $seconds = 0;
+                $totalPause = 0;
+                foreach ($events as $event) {
+                    $action = explode('-', $event)[1];
+                    if ($lastEvent == 'SORTIE' && $action == 'ENTREE') {
+                        $exitHour = new DateTime($hours[$i - 1]);
+                        $entryHour = new DateTime($hours[$i]);
+                        $interval = $entryHour->diff($exitHour);
+                        $seconds += ($interval->h * 3600) + $interval->i * 60 + ($interval->s);
+                        $totalPause += 1;
+                    }
+
+                    $lastEvent = $action;
+
+                    $allEvents[] = $action;
+
+                    switch ($action) {
+                        case 'ENTREE':
+                            $COUNT_ACTION['ENTRY'] += 1;
+                            break;
+                        case 'SORTIE':
+                            $COUNT_ACTION['EXIT'] += 1;
+                            break;
+                    }
+                    $i++;
+                }
+
+                if (count($allEvents) > 1)
+                    $newResults[] = [
+                        'nb_seconds_pauses' => $seconds,
+                        'nb_pause' => $totalPause,
+                        'is_unique_card' => $is_unique_card,
+                        'is_night_shift' => $is_night_shift,
+                        'action' => $COUNT_ACTION,
+                        'is_event_unique' => count(array_unique($allEvents)) == 1,
+                        ...$row
+                    ];
+            }
+        }
+
+        $query->setCollection(collect($newResults));
+        return $query;
     }
 
     public function calculerToutesPauses(array $donnees)
@@ -69,8 +124,10 @@ class LogController extends Controller
                 $heuresArray = explode(', ', $heuresStr);
                 $eventsArray = explode(', ', $eventsStr);
 
-                var_dump($heuresArray); echo'<br/>';
-                var_dump($eventsArray); echo '<br/>';
+                var_dump($heuresArray);
+                echo '<br/>';
+                var_dump($eventsArray);
+                echo '<br/>';
                 echo '<br/>';
                 echo '<br/>';
 
@@ -85,7 +142,7 @@ class LogController extends Controller
                 }
             }
 
-           
+
 
             $resultats[] = [
                 // 'Name' => $nom,
